@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tu nivel de caos</title>
+<meta name="description" content="Tienes 15 segundos para crear caos en la pantalla. Descubre tu nivel de caos y compártelo.">
+<style>
+  :root { --bg: #0d0a1f; --ink: #f3efff; --mut: rgba(243, 239, 255, .68); }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    overflow: hidden;
+    overscroll-behavior: none;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: crosshair;
+  }
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px calc(env(safe-area-inset-bottom, 0px) + 24px);
+    overflow: auto;
+    text-align: center;
+  }
+  .screen[hidden] { display: none; }
+  .inner {
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2.3rem, 10vw, 3.8rem);
+    line-height: 1.02;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  p {
+    margin: 0;
+    max-width: 30ch;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    color: var(--mut);
+  }
+  p.warn { font-size: .9rem; }
+  .btn {
+    min-height: 52px;
+    padding: 0 1.7rem;
+    border: 0;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #140d2b;
+    background: linear-gradient(90deg, #ff4fa3, #ffd24f, #4fe3ff);
+    cursor: pointer;
+  }
+  .btn.ghost {
+    color: var(--ink);
+    background: rgba(255, 255, 255, .08);
+    border: 1px solid rgba(255, 255, 255, .25);
+  }
+  .btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+  .hud {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 14px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .hud[hidden] { display: none; }
+  .timer {
+    font-size: 2.6rem;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 18px rgba(0, 0, 0, .6);
+  }
+  .meter {
+    width: 220px;
+    height: 10px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, .12);
+    overflow: hidden;
+  }
+  #meterFill {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, #4fe3ff, #ffd24f, #ff4fa3);
+  }
+  .meterLabel { font-size: .85rem; color: var(--mut); }
+
+  #card {
+    width: min(86vw, 360px);
+    height: auto;
+    border-radius: 14px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .45);
+  }
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: min(86vw, 360px);
+  }
+  .actions .btn:first-child { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="Pantalla que reacciona a tus toques y movimientos"></canvas>
+
+<div class="screen" id="intro">
+  <div class="inner">
+    <h1>Tu nivel de caos</h1>
+    <p>Tienes 15 segundos. Toca, arrastra, mueve el mouse… o quédate quieto. La pantalla mide todo lo que hagas.</p>
+    <p class="warn">Incluye luces y movimiento intensos.</p>
+    <button class="btn" id="start" type="button">Empezar</button>
+  </div>
+</div>
+
+<div class="hud" id="hud" hidden>
+  <div class="timer" id="timer">15</div>
+  <div class="meter"><div id="meterFill"></div></div>
+  <div class="meterLabel">caos</div>
+</div>
+
+<div class="screen" id="result" hidden>
+  <div class="inner">
+    <canvas id="card" width="1080" height="1350" aria-label="Tarjeta con tu nivel de caos"></canvas>
+    <div class="actions">
+      <button class="btn" id="share" type="button">Compartir</button>
+      <button class="btn ghost" id="save" type="button">Guardar imagen</button>
+      <button class="btn ghost" id="retry" type="button">Intentar de nuevo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Aquí puedes poner más adelante una barra de publicidad (propia o AdSense) -->
+
+<script>
+(() => {
+  // Cuando elijas el nombre de tu página, escríbelo aquí (ej: 'gusanoloco.github.io').
+  // Aparecerá abajo en la tarjeta que la gente comparte. Si lo dejas vacío, no se muestra.
+  const SITE = '';
+
+  const DURATION = 15;
+  const BG = [13, 10, 31];
+  const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (id) => document.getElementById(id);
+
+  const stage = $('stage');
+  const ctx = stage.getContext('2d');
+  const intro = $('intro'), result = $('result'), hud = $('hud');
+  const timerEl = $('timer'), meterFill = $('meterFill');
+  const card = $('card');
+
+  let W = 0, H = 0;
+  let mode = 'idle';            // idle | play | done
+  let lastT = 0, playStart = 0;
+  let hue = Math.random() * 360;
+
+  // Medición de actividad
+  let distAcc = 0, speed = 0, chaos = 0;
+  let recentClicks = 0, recentTurns = 0;
+  let last = null, lastAng = null, brk = true;
+
+  // Estadísticas de la partida
+  let totalDist = 0, clicks = 0, turns = 0, stillT = 0;
+  let sumChaos = 0, peakChaos = 0, maxSpeed = 0;
+  let path = [], pathN = 0;
+
+  const dots = [], particles = [], rings = [];
+  let shareText = '';
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    stage.width = Math.round(W * dpr);
+    stage.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = 'rgb(' + BG.join(',') + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function makeDots() {
+    const n = reduce ? 25 : 55;
+    for (let i = 0; i < n; i++) {
+      dots.push({
+        x: Math.random() * W, y: Math.random() * H,
+        a: Math.random() * Math.PI * 2,
+        s: 8 + Math.random() * 20,
+        r: 1 + Math.random() * 2.2,
+        h: Math.random() * 360
+      });
+    }
+  }
+
+  // ---------- Dibujo reactivo ----------
+  function seg(x1, y1, x2, y2) {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.lineCap = 'round';
+    const j = reduce ? 0 : chaos * chaos * 14;
+    const c = 'hsl(' + (hue | 0) + ',100%,62%)';
+    ctx.strokeStyle = c;
+    ctx.lineWidth = 2 + chaos * 16;
+    ctx.shadowColor = c;
+    ctx.shadowBlur = reduce ? 0 : 8 + chaos * 30;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2 + (Math.random() - .5) * j, y2 + (Math.random() - .5) * j);
+    ctx.stroke();
+    if (!reduce && chaos > 0.4) {
+      const c2 = 'hsl(' + (((hue + 180) % 360) | 0) + ',100%,65%)';
+      ctx.strokeStyle = c2;
+      ctx.shadowColor = c2;
+      ctx.lineWidth = 1 + chaos * 4;
+      ctx.beginPath();
+      ctx.moveTo(x1 + (Math.random() - .5) * j * 2, y1 + (Math.random() - .5) * j * 2);
+      ctx.lineTo(x2 + (Math.random() - .5) * j * 2, y2 + (Math.random() - .5) * j * 2);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  }
+
+  function burst(x, y, n) {
+    const cap = reduce ? 150 : 700;
+    for (let i = 0; i < n && particles.length < cap; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = 60 + Math.random() * (200 + chaos * 700);
+      particles.push({
+        x, y,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+        life: 1, decay: 0.7 + Math.random(),
+        r: 1.5 + Math.random() * 3,
+        h: (hue + Math.random() * 80) % 360
+      });
+    }
+  }
+
+  // ---------- Entrada ----------
+  stage.addEventListener('pointerdown', (e) => {
+    last = { x: e.clientX, y: e.clientY };
+    lastAng = null;
+    brk = true;
+    if (mode === 'play') { clicks++; recentClicks += 1; }
+    const n = 1 + Math.floor(chaos * 2.5);
+    for (let i = 0; i < n; i++) {
+      rings.push({ x: e.clientX, y: e.clientY, r: 0, max: 120 + Math.random() * 160 + chaos * 200, h: (hue + i * 40) % 360, sp: 1 + i * 0.35 });
+    }
+    burst(e.clientX, e.clientY, 12 + Math.floor(chaos * 20));
+  });
+
+  stage.addEventListener('pointermove', (e) => {
+    const x = e.clientX, y = e.clientY;
+    if (last) {
+      const dx = x - last.x, dy = y - last.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 0) {
+        distAcc += d;
+        if (mode === 'play') totalDist += d;
+        if (d > 6) {
+          const a = Math.atan2(dy, dx);
+          if (lastAng !== null) {
+            let diff = Math.abs(a - lastAng);
+            if (diff > Math.PI) diff = Math.PI * 2 - diff;
+            if (diff > 1.2) { recentTurns += 1; if (mode === 'play') turns++; }
+          }
+          lastAng = a;
+        }
+        seg(last.x, last.y, x, y);
+        const n = Math.min(reduce ? 2 : 6, Math.floor(d / 10 * (1 + chaos * 2)) + (Math.random() < 0.3 ? 1 : 0));
+        burst(x, y, n);
+        if (mode === 'play' && path.length < 2000 && (pathN++ % 2 === 0)) {
+          path.push({ x, y, h: hue, brk });
+          brk = false;
+        }
+      }
+    }
+    last = { x, y };
+  });
+
+  const endTouch = (e) => { if (e.pointerType !== 'mouse') { last = null; } };
+  stage.addEventListener('pointerup', endTouch);
+  stage.addEventListener('pointercancel', endTouch);
+  stage.addEventListener('pointerleave', () => { last = null; brk = true; });
+
+  // ---------- Bucle principal ----------
+  function frame(t) {
+    if (!lastT) lastT = t;
+    const dt = Math.min(0.05, Math.max(0.001, (t - lastT) / 1000));
+    lastT = t;
+
+    const inst = distAcc / dt;
+    distAcc = 0;
+    speed += (Math.min(inst, 12000) - speed) * (1 - Math.exp(-dt * 10));
+    recentClicks *= Math.exp(-dt * 1.5);
+    recentTurns *= Math.exp(-dt * 2);
+
+    let act = Math.min(1, speed / 2500 + recentClicks * 0.3 + recentTurns * 0.12);
+    if (mode === 'idle') act = Math.min(act, 0.15);
+    if (mode === 'done') act = 0;
+    chaos += (act - chaos) * (1 - Math.exp(-dt * (act > chaos ? 6 : 1.8)));
+    hue = (hue + dt * (20 + chaos * 420)) % 360;
+
+    // Fondo: con más caos, la estela dura más
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(' + BG.join(',') + ',' + (0.24 - chaos * 0.17).toFixed(3) + ')';
+    ctx.fillRect(0, 0, W, H);
+
+    // Puntitos de fondo: tranquilos al principio, enloquecen con el caos
+    for (const p of dots) {
+      p.a += (Math.random() - .5) * chaos * 0.6;
+      p.x += Math.cos(p.a) * p.s * dt * (1 + chaos * 9);
+      p.y += Math.sin(p.a) * p.s * dt * (1 + chaos * 9);
+      if (p.x < 0) p.x += W; else if (p.x > W) p.x -= W;
+      if (p.y < 0) p.y += H; else if (p.y > H) p.y -= H;
+      ctx.fillStyle = 'hsla(' + (((p.h + hue) % 360) | 0) + ',90%,70%,' + (0.18 + chaos * 0.5).toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * (1 + chaos * 1.5), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Ondas
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const r = rings[i];
+      r.r += dt * (300 + chaos * 600) * r.sp;
+      const al = 1 - r.r / r.max;
+      if (al <= 0) { rings.splice(i, 1); continue; }
+      ctx.strokeStyle = 'hsla(' + (r.h | 0) + ',100%,65%,' + al.toFixed(2) + ')';
+      ctx.lineWidth = 2 + chaos * 6;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Partículas
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      const f = Math.exp(-dt * 1.5);
+      p.vx *= f; p.vy *= f;
+      p.life -= dt * p.decay;
+      if (p.life <= 0) { particles.splice(i, 1); continue; }
+      ctx.fillStyle = 'hsla(' + (p.h | 0) + ',100%,65%,' + p.life.toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * (0.6 + p.life * 0.6), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Franjas "glitch" (solo con mucho caos, chicas y suaves)
+    if (!reduce && Math.random() < chaos * chaos * 0.5) {
+      const k = 1 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < k; i++) {
+        ctx.fillStyle = 'hsla(' + ((Math.random() * 360) | 0) + ',100%,60%,' + (0.12 + 0.18 * chaos).toFixed(2) + ')';
+        ctx.fillRect(0, Math.random() * H, W, 2 + Math.random() * 14);
+      }
+    }
+
+    // Temblor de pantalla
+    if (!reduce && chaos > 0.45) {
+      const m = (chaos - 0.45) * 14;
+      stage.style.transform = 'translate(' + ((Math.random() - .5) * m).toFixed(1) + 'px,' + ((Math.random() - .5) * m).toFixed(1) + 'px)';
+    } else if (stage.style.transform) {
+      stage.style.transform = '';
+    }
+
+    // Partida en curso
+    if (mode === 'play') {
+      const el = (t - playStart) / 1000;
+      if (speed < 60) stillT += dt;
+      sumChaos += chaos * dt;
+      if (chaos > peakChaos) peakChaos = chaos;
+      if (speed > maxSpeed) maxSpeed = speed;
+      timerEl.textContent = Math.max(0, Math.ceil(DURATION - el));
+      meterFill.style.width = (chaos * 100).toFixed(1) + '%';
+      if (el >= DURATION) finish();
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Resultado ----------
+  const clampPct = (v) => Math.max(1, Math.min(99, Math.round(v)));
+
+  function compute() {
+    const avgSpeed = totalDist / DURATION;
+    const a = 1 - Math.exp(-avgSpeed / 1000);
+    const p = 1 - Math.exp(-maxSpeed / 4000);
+    const vel = clampPct(100 * (0.6 * a + 0.4 * p));
+    const pac = clampPct(100 * Math.pow(stillT / DURATION, 0.6));
+    const avgC = sumChaos / DURATION;
+    const caos = clampPct(100 * (0.7 * (1 - Math.exp(-3 * avgC)) + 0.3 * peakChaos));
+    return { caos, pac, vel, clicks, turns };
+  }
+
+  const T = {
+    fantasma:  { title: 'Fantasma de la pantalla', phrase: 'Ni se notó que estabas aquí. Eso también es un talento.' },
+    monje:     { title: 'Monje zen sospechoso', phrase: 'Respiras profundo mientras la pantalla arde. Admirable.' },
+    dedo:      { title: 'Dedo nervioso', phrase: 'Tu dedo tenía algo urgente que decirle a la pantalla.' },
+    tornado:   { title: 'Tornado de oficina', phrase: 'Dejaste la pantalla peor que un escritorio un lunes.' },
+    rayo:      { title: 'Rayo sin destino', phrase: 'Mucha velocidad y cero dirección. Pero con estilo.' },
+    veleta:    { title: 'Veleta con cafeína', phrase: 'Cambiaste de opinión más veces que de canal.' },
+    organizado:{ title: 'Caos organizado', phrase: 'Había un plan. Nadie sabe cuál, pero había.' },
+    moderado:  { title: 'Caos con buenos modales', phrase: 'Mucho ruido, pero pidiendo permiso.' }
+  };
+
+  function pick(r) {
+    if (r.caos < 12 && r.vel < 12) return T.fantasma;
+    if (r.pac >= 60 && r.caos < 35) return T.monje;
+    if (r.clicks >= 40 && r.vel < 60) return T.dedo;
+    if (r.caos >= 80 && r.vel >= 75) return T.tornado;
+    if (r.vel >= 70 && r.pac < 20) return T.rayo;
+    if (r.turns >= 45) return T.veleta;
+    if (r.caos >= 65) return T.organizado;
+    return T.moderado;
+  }
+
+  function rr(g, x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r);
+    g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  }
+
+  function wrap(g, text, max) {
+    const words = text.split(' ');
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      const test = cur ? cur + ' ' + w : w;
+      if (g.measureText(test).width > max && cur) { lines.push(cur); cur = w; }
+      else cur = test;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  function drawSignature(g, bx, by, bw, bh) {
+    if (path.length < 2) {
+      g.fillStyle = 'rgba(243,239,255,0.5)';
+      g.font = '500 36px ' + FONT;
+      g.textAlign = 'center';
+      g.fillText('Sin movimiento detectado', bx + bw / 2, by + bh / 2);
+      return;
+    }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of path) {
+      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+    }
+    const w = (maxX - minX) || 1, h = (maxY - minY) || 1;
+    const s = Math.min(5, Math.min((bw - 100) / w, (bh - 100) / h));
+    const ox = bx + bw / 2 - (minX + w / 2) * s;
+    const oy = by + bh / 2 - (minY + h / 2) * s;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.lineWidth = 6;
+    for (let i = 1; i < path.length; i++) {
+      const p = path[i], q = path[i - 1];
+      if (p.brk) continue;
+      const c = 'hsl(' + (p.h | 0) + ',100%,62%)';
+      g.strokeStyle = c;
+      g.shadowColor = c;
+      g.shadowBlur = 14;
+      g.beginPath();
+      g.moveTo(q.x * s + ox, q.y * s + oy);
+      g.lineTo(p.x * s + ox, p.y * s + oy);
+      g.stroke();
+    }
+    g.shadowBlur = 0;
+  }
+
+  function renderCard(r, t) {
+    const g = card.getContext('2d');
+    card.width = 1080; card.height = 1350;
+    const grad = g.createLinearGradient(0, 0, 0, 1350);
+    grad.addColorStop(0, '#0d0a1f');
+    grad.addColorStop(1, '#26104d');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 1080, 1350);
+
+    rr(g, 70, 70, 940, 550, 36);
+    g.fillStyle = 'rgba(255,255,255,0.05)';
+    g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.12)';
+    g.lineWidth = 2;
+    g.stroke();
+    drawSignature(g, 70, 70, 940, 550);
+
+    g.textAlign = 'center';
+    g.fillStyle = '#f3efff';
+    g.font = '800 84px ' + FONT;
+    const tl = wrap(g, t.title, 920);
+    tl.forEach((ln, i) => g.fillText(ln, 540, 720 + i * 92));
+
+    g.fillStyle = 'rgba(243,239,255,0.75)';
+    g.font = '500 38px ' + FONT;
+    const pl = wrap(g, t.phrase, 880);
+    const py = 720 + (tl.length - 1) * 92 + 72;
+    pl.forEach((ln, i) => g.fillText(ln, 540, py + i * 50));
+
+    const rows = [['Caos', r.caos, '#ff4fa3'], ['Paciencia', r.pac, '#4fe3b0'], ['Velocidad', r.vel, '#4fc8ff']];
+    rows.forEach((row, i) => {
+      const y = 1065 + i * 78;
+      g.textAlign = 'left';
+      g.fillStyle = '#f3efff';
+      g.font = '700 44px ' + FONT;
+      g.fillText(row[0], 70, y);
+      g.textAlign = 'right';
+      g.font = '800 44px ' + FONT;
+      g.fillText(row[1] + '%', 1010, y);
+      rr(g, 70, y + 16, 940, 16, 8);
+      g.fillStyle = 'rgba(255,255,255,0.1)';
+      g.fill();
+      rr(g, 70, y + 16, Math.max(16, 940 * row[1] / 100), 16, 8);
+      g.fillStyle = row[2];
+      g.shadowColor = row[2];
+      g.shadowBlur = 12;
+      g.fill();
+      g.shadowBlur = 0;
+    });
+
+    g.textAlign = 'center';
+    g.fillStyle = 'rgba(243,239,255,0.6)';
+    g.font = '600 32px ' + FONT;
+    g.fillText('¿Cuál es tu nivel de caos?', 540, SITE ? 1272 : 1300);
+    if (SITE) {
+      g.fillStyle = '#f3efff';
+      g.font = '700 30px ' + FONT;
+      g.fillText(SITE, 540, 1316);
+    }
+  }
+
+  function finish() {
+    mode = 'done';
+    hud.hidden = true;
+    const r = compute();
+    const t = pick(r);
+    renderCard(r, t);
+    shareText = 'Mi nivel de caos: ' + r.caos + '% — ' + t.title + '. ¿Y el tuyo?' + (SITE ? ' ' + SITE : '');
+    result.hidden = false;
+    result.scrollTop = 0;
+  }
+
+  function resetStats() {
+    totalDist = 0; clicks = 0; turns = 0; stillT = 0;
+    sumChaos = 0; peakChaos = 0; maxSpeed = 0;
+    path = []; pathN = 0;
+    particles.length = 0; rings.length = 0;
+    recentClicks = 0; recentTurns = 0;
+    last = null; lastAng = null; brk = true;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgb(' + BG.join(',') + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function getBlob() {
+    return new Promise((res) => card.toBlob(res, 'image/png'));
+  }
+
+  function download(blob) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'mi-nivel-de-caos.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  $('start').addEventListener('click', () => {
+    resetStats();
+    intro.hidden = true;
+    hud.hidden = false;
+    timerEl.textContent = DURATION;
+    meterFill.style.width = '0%';
+    mode = 'play';
+    playStart = performance.now();
+  });
+
+  $('retry').addEventListener('click', () => {
+    result.hidden = true;
+    resetStats();
+    mode = 'idle';
+    intro.hidden = false;
+  });
+
+  $('save').addEventListener('click', async () => {
+    const blob = await getBlob();
+    if (blob) download(blob);
+  });
+
+  $('share').addEventListener('click', async () => {
+    const blob = await getBlob();
+    if (!blob) return;
+    const file = new File([blob], 'mi-nivel-de-caos.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Mi nivel de caos', text: shareText });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+      }
+    }
+    download(blob);
+  });
+
+  window.addEventListener('resize', resize);
+  resize();
+  makeDots();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
