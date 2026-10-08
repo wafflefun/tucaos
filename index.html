@@ -1,4 +1,13 @@
 <!doctype html>
+<!--
+  ===== TU NIVEL DE CAOS · GUÍA RÁPIDA =====
+  Busca "CAMBIAR:" (números y textos que puedes tocar) y "AGREGAR:" (ideas para sumar).
+  Duración y colores ... constantes al inicio del <script> (DURATION, BG)
+  Perfiles y frases .... lista T y función pick()
+  Qué mide cada barra .. función compute()
+  Link para la tarjeta . constante SITE
+  Botón "¡Aquí hay más!" al final del archivo (la lista de juegos se edita en juegos.js)
+-->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -6,6 +15,7 @@
 <title>Tu nivel de caos</title>
 <meta name="description" content="Tienes 15 segundos para crear caos en la pantalla. Descubre tu nivel de caos y compártelo.">
 <style>
+  /* CAMBIAR: colores principales (si cambias --bg, cambia también BG en el script) */
   :root { --bg: #0d0a1f; --ink: #f3efff; --mut: rgba(243, 239, 255, .68); }
   * { box-sizing: border-box; }
   html, body {
@@ -67,7 +77,7 @@
     font-size: 1.05rem;
     font-weight: 700;
     color: #140d2b;
-    background: linear-gradient(90deg, #ff4fa3, #ffd24f, #4fe3ff);
+    background: linear-gradient(90deg, #ff4fa3, #ffd24f, #4fe3ff);   /* CAMBIAR: colores del botón */
     cursor: pointer;
   }
   .btn.ghost {
@@ -124,22 +134,8 @@
   }
   .actions .btn:first-child { grid-column: 1 / -1; }
 
-  .promos { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-  .promo {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    padding: 0 1.1rem;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, .25);
-    background: rgba(255, 255, 255, .08);
-    color: var(--ink);
-    font-size: .95rem;
-    font-weight: 500;
-    text-decoration: none;
-  }
-  .promo:hover { background: rgba(255, 255, 255, .16); }
-  .promo:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  /* CAMBIAR: el botón "¡Aquí hay más!" se oculta mientras juegas. Para que se vea siempre, borra la línea de abajo */
+  body.jugando .ma-b { display: none; }
 </style>
 </head>
 <body>
@@ -151,7 +147,6 @@
     <p>Tienes 15 segundos. Toca, arrastra, mueve el mouse… o quédate quieto. La pantalla mide todo lo que hagas.</p>
     <p class="warn">Incluye luces y movimiento intensos.</p>
     <button class="btn" id="start" type="button">Empezar</button>
-    <nav class="promos"><a class="promo" href="https://wafflefun.github.io/gusanoloco/">🐛 El Gusano</a><a class="promo" href="https://wafflefun.github.io/tumonstruo/">👾 Crea tu monstruo</a></nav>
   </div>
 </div>
 
@@ -169,20 +164,19 @@
       <button class="btn ghost" id="save" type="button">Guardar imagen</button>
       <button class="btn ghost" id="retry" type="button">Intentar de nuevo</button>
     </div>
-    <nav class="promos"><a class="promo" href="https://wafflefun.github.io/gusanoloco/">🐛 El Gusano</a><a class="promo" href="https://wafflefun.github.io/monstruo/">👾 Crea tu monstruo</a></nav>
   </div>
 </div>
 
-<!-- Aquí puedes poner más adelante una barra de publicidad (propia o AdSense) -->
+<!-- AGREGAR: aquí puedes poner más adelante una barra de publicidad (propia o AdSense) -->
 
 <script>
 (() => {
-  // Cuando elijas el nombre de tu página, escríbelo aquí (ej: 'gusanoloco.github.io').
+  // CAMBIAR: cuando elijas el nombre de tu página, escríbelo aquí (ej: 'wafflefun.github.io').
   // Aparecerá abajo en la tarjeta que la gente comparte. Si lo dejas vacío, no se muestra.
   const SITE = '';
 
-  const DURATION = 15;
-  const BG = [13, 10, 31];
+  const DURATION = 15;               // CAMBIAR: segundos que dura la partida
+  const BG = [13, 10, 31];           // CAMBIAR: color de fondo en formato R,G,B (debe coincidir con --bg)
   const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = (id) => document.getElementById(id);
@@ -223,7 +217,7 @@
   }
 
   function makeDots() {
-    const n = reduce ? 25 : 55;
+    const n = reduce ? 25 : 55;      // CAMBIAR: cantidad de puntitos de fondo
     for (let i = 0; i < n; i++) {
       dots.push({
         x: Math.random() * W, y: Math.random() * H,
@@ -242,7 +236,7 @@
     const j = reduce ? 0 : chaos * chaos * 14;
     const c = 'hsl(' + (hue | 0) + ',100%,62%)';
     ctx.strokeStyle = c;
-    ctx.lineWidth = 2 + chaos * 16;
+    ctx.lineWidth = 2 + chaos * 16;     // CAMBIAR: grosor del trazo (2 = mínimo, 16 = extra con caos)
     ctx.shadowColor = c;
     ctx.shadowBlur = reduce ? 0 : 8 + chaos * 30;
     ctx.beginPath();
@@ -263,7 +257,7 @@
   }
 
   function burst(x, y, n) {
-    const cap = reduce ? 150 : 700;
+    const cap = reduce ? 150 : 700;     // CAMBIAR: máximo de partículas a la vez
     for (let i = 0; i < n && particles.length < cap; i++) {
       const a = Math.random() * Math.PI * 2;
       const v = 60 + Math.random() * (200 + chaos * 700);
@@ -336,6 +330,8 @@
     recentClicks *= Math.exp(-dt * 1.5);
     recentTurns *= Math.exp(-dt * 2);
 
+    // CAMBIAR: qué tan fácil sube el caos. 2500 = velocidad que da el 100% (más bajo = más fácil);
+    // 0.3 = peso de los toques; 0.12 = peso de los giros bruscos
     let act = Math.min(1, speed / 2500 + recentClicks * 0.3 + recentTurns * 0.12);
     if (mode === 'idle') act = Math.min(act, 0.15);
     if (mode === 'done') act = 0;
@@ -397,7 +393,7 @@
       }
     }
 
-    // Temblor de pantalla
+    // Temblor de pantalla (CAMBIAR: 0.45 = desde qué nivel de caos tiembla; 14 = fuerza)
     if (!reduce && chaos > 0.45) {
       const m = (chaos - 0.45) * 14;
       stage.style.transform = 'translate(' + ((Math.random() - .5) * m).toFixed(1) + 'px,' + ((Math.random() - .5) * m).toFixed(1) + 'px)';
@@ -423,6 +419,8 @@
   // ---------- Resultado ----------
   const clampPct = (v) => Math.max(1, Math.min(99, Math.round(v)));
 
+  // CAMBIAR: aquí se calculan los 3 porcentajes. Los números 1000, 4000 y los pesos (0.6, 0.4, 0.7, 0.3)
+  // controlan qué tan fácil es llegar a 99%.
   function compute() {
     const avgSpeed = totalDist / DURATION;
     const a = 1 - Math.exp(-avgSpeed / 1000);
@@ -434,6 +432,8 @@
     return { caos, pac, vel, clicks, turns };
   }
 
+  // CAMBIAR/AGREGAR: los 8 perfiles con su título y frase. Para agregar uno, copia una línea
+  // y luego agrega la condición en pick() (justo abajo).
   const T = {
     fantasma:  { title: 'Fantasma de la pantalla', phrase: 'Ni se notó que estabas aquí. Eso también es un talento.' },
     monje:     { title: 'Monje zen sospechoso', phrase: 'Respiras profundo mientras la pantalla arde. Admirable.' },
@@ -445,6 +445,7 @@
     moderado:  { title: 'Caos con buenos modales', phrase: 'Mucho ruido, pero pidiendo permiso.' }
   };
 
+  // CAMBIAR: condiciones para cada perfil (se revisan de arriba hacia abajo; gana el primero que se cumple)
   function pick(r) {
     if (r.caos < 12 && r.vel < 12) return T.fantasma;
     if (r.pac >= 60 && r.caos < 35) return T.monje;
@@ -514,6 +515,7 @@
     g.shadowBlur = 0;
   }
 
+  // CAMBIAR: dibujo de la tarjeta (1080 x 1350). Colores del fondo en addColorStop, posiciones en los números.
   function renderCard(r, t) {
     const g = card.getContext('2d');
     card.width = 1080; card.height = 1350;
@@ -578,6 +580,7 @@
   function finish() {
     mode = 'done';
     hud.hidden = true;
+    document.body.classList.remove('jugando');   // el botón "¡Aquí hay más!" vuelve a verse
     const r = compute();
     const t = pick(r);
     renderCard(r, t);
@@ -618,6 +621,7 @@
     timerEl.textContent = DURATION;
     meterFill.style.width = '0%';
     mode = 'play';
+    document.body.classList.add('jugando');      // oculta el botón "¡Aquí hay más!" mientras juegas
     playStart = performance.now();
   });
 
@@ -654,5 +658,7 @@
   requestAnimationFrame(frame);
 })();
 </script>
+<!-- AQUÍ SE AGREGA EL BOTÓN "¡Aquí hay más!" (menú con todos los juegos). La lista de juegos se edita en juegos.js, en el repositorio wafflefun.github.io -->
+<script src="https://wafflefun.github.io/juegos.js"></script>
 </body>
 </html>
